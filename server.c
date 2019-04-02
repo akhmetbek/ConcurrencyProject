@@ -21,6 +21,7 @@ char *output;
 pthread_mutex_t rd;
 pthread_mutex_t lock;
 int count = 0;
+int rcount = 0;
 int passivesock( char *service, char *protocol, int qlen, int *rport );
 
 /*
@@ -87,8 +88,8 @@ int getWord(char src[4096], char dest[256], int wordIndex){
 int readerHandler(int ssock, char buf[BUFSIZE], char args[256], int cc){
 	pthread_mutex_lock(&rd);
 	
-	count++;
-	if(count == 1){
+	rcount++;
+	if(rcount == 1){
 		pthread_mutex_lock(&lock);
 	}
 	pthread_mutex_unlock(&rd);
@@ -96,14 +97,14 @@ int readerHandler(int ssock, char buf[BUFSIZE], char args[256], int cc){
 	
 	char size[256] = "SIZE ";
 	char Size[20] = "";
-	strcat(size, toStr(Size , strlen(output)));
+	strcat(size, toStr(Size , strlen(output) + 1));
 	
-	if((cc = write(ssock, size, strlen(output))) < 0){
+	if((cc = write(ssock, size, strlen(size))) < 0){
 		printf("The reader %i timed out\n", ssock);
 		
 		pthread_mutex_lock(&rd);
 		close(ssock);
-		count--;
+		rcount--;
 		pthread_mutex_lock(&rd);
 		pthread_mutex_unlock(&lock);
 
@@ -113,11 +114,11 @@ int readerHandler(int ssock, char buf[BUFSIZE], char args[256], int cc){
 	int chunkSize = 4096;
 	while(cc){
 		if((cc = write(ssock, &output[i*chunkSize], chunkSize)) < 0){
-			printf("The reader %i timed out\n", ssock);
+			printf("The reader %i has finished operation\n", ssock);
 		
 			pthread_mutex_lock(&rd);
 			close(ssock);
-			count--;
+			rcount--;
 			pthread_mutex_lock(&rd);
 			pthread_mutex_unlock(&lock);
 		
@@ -130,7 +131,7 @@ int readerHandler(int ssock, char buf[BUFSIZE], char args[256], int cc){
 	printf("Client %i has gone\n", ssock);
 	
 	pthread_mutex_lock(&rd);
-	count--;
+	rcount--;
 	close(ssock);
 	pthread_mutex_unlock(&rd);
 	
@@ -256,6 +257,7 @@ int main( int argc, char *argv[] )
 		printf("Error reading the file\n");
 		return 0;
 	}
+	
 	output[cc] = '\0';
 	//int errrno = 0;
 	//dprintf(file, "%s %i\n","HI", 2);
@@ -297,7 +299,7 @@ int main( int argc, char *argv[] )
 
 		pthread_create(&threads[count], NULL, &talk, (void*) ssock[count]);
 		count++;
-		printf( "A client has arrived for echoes.\n" );
+		printf( "A client has arrived for operation.\n" );
 		fflush( stdout );
 		/* start working for this guy */
 		/* ECHO what the client says */

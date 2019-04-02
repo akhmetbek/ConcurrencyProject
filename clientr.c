@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <math.h>
 #define BUFSIZE		4096
 
 
@@ -18,6 +19,12 @@ pthread_mutex_t lock;
 pthread_t readers[50];
 
 int connectsock( char *host, char *service, char *protocol );
+
+
+double poissonRandomInterarrivalDelay( double L )
+{
+    return (log((double) 1.0 - ((double) rand())/((double) RAND_MAX)))/-L;
+}
 
 char* toStr(char buf[256], int src){
 	buf[0] = '\0';
@@ -83,6 +90,7 @@ void * readText(void * args){
 	char cbuf[25];
 	char filename[50] = "file of reader number ";
 	strcat(filename, toStr(cbuf, (int) cnt));
+	strcat(filename, ".txt");
 	if((file = open(filename, O_CREAT | O_RDWR, S_IRWXU)) < 0){
 		printf("Error opening the file\n");
 		return 0;
@@ -108,9 +116,17 @@ void * readText(void * args){
 		exit( -1 );
 	}
 	
+	if ( (cc = write( csock, "READ", 5 )) <= 0 )
+        {
+        	printf( "The server has gone0.\n" );
+                close(csock);
+                exit(-1);
+        }
+	
+	
 	if ( (cc = read( csock, buf, BUFSIZE )) <= 0 )
         {
-        	printf( "The server has gone.\n" );
+        	printf( "The server has gone1.\n" );
                 close(csock);
                 exit(-1);
         }
@@ -130,13 +146,14 @@ void * readText(void * args){
                 	while(i < size){
                 		if ( (cc = read( csock, buf, BUFSIZE )) <= 0 )
 				{
-					printf( "The server has gone.\n" );
+					printf( "Reading finished\n" );
 					close(csock);
-					exit(-1);
+					pthread_exit(0);
 				}
+				dprintf(file, "%s\n", buf);
                 	}
                 	
-                	dprintf(file, "%s\n", &buf[strlen(args) + 6]);
+                	
                 }
 	}
 }
@@ -146,7 +163,7 @@ void * readText(void * args){
 int main( int argc, char *argv[] )
 {
 	
-	long count = 0;
+	long count = 1;
 	switch( argc ) 
 	{
 		case    2:
@@ -159,12 +176,13 @@ int main( int argc, char *argv[] )
 
 
 	// 	implement poisson distribution
-	while (count < 2)
+	while (count < 50)
 	{
 		pthread_mutex_lock(&lock);
 		pthread_create(&readers[count], NULL, &readText, (void*)count);
 		count++;
 		pthread_mutex_unlock(&lock);
+		sleep(poissonRandomInterarrivalDelay(0.02));
 	}
 	return 0;
 

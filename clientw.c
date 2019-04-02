@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <math.h>
 #define BUFSIZE		4096
 
 
@@ -17,9 +18,15 @@ char	*host = "localhost";
 char wordset[5] = "ABCD";
 
 
-pthread_t readers[50];
-
+pthread_t writers[50];
+pthread_mutex_t lock;
 int connectsock( char *host, char *service, char *protocol );
+
+
+double poissonRandomInterarrivalDelay( double L )
+{
+    return (log((double) 1.0 - ((double) rand())/((double) RAND_MAX)))/-L;
+}
 
 char* toStr(char buf[256], int src){
 	buf[0] = '\0';
@@ -78,7 +85,9 @@ int getWord(char src[4096], char dest[256], int wordIndex){
 }
 
 void * writeText(void * args){
+	pthread_mutex_lock(&lock);
 	long cnt = (long) args;
+	pthread_mutex_unlock(&lock);
 	char cbuf[BUFSIZE];
 	
 	char		buf[BUFSIZE];	
@@ -156,11 +165,13 @@ int main( int argc, char *argv[] )
 
 
 	// 	implement poisson distribution
-	while (count < 1)
+	while (count < 50)
 	{
-		
-		pthread_create(&readers[count], NULL, &writeText, (void*)count);
+		pthread_mutex_lock(&lock);		
+		pthread_create(&writers[count], NULL, &writeText, (void*)count);
 		count++;
+		pthread_mutex_unlock(&lock);
+		poissonRandomInterarrivalDelay( 0.2);
 	}
 	return 0;
 
